@@ -49,6 +49,80 @@ const demandShape = [
 const formatter = new Intl.NumberFormat("ko-KR");
 let publicDataSnapshot = null;
 
+const datasetLabels = {
+  station_ridership: "서울교통공사 역별승하차",
+  bus_arrivals: "서울 버스도착",
+  airport_parking_t1: "인천공항 T1 주차면",
+  airport_rail_runs: "인천공항 공항철도",
+  airport_shuttles: "인천공항 셔틀버스",
+  airport_buses: "인천공항 버스",
+  airport_passenger_forecast: "인천공항 승객예고",
+  airport_scheduled_flights: "인천공항 정기운항",
+  airport_flight_operations: "인천공항 운항현황",
+};
+
+const sampleFieldPriority = [
+  "pasngDe",
+  "pasngHr",
+  "lineNm",
+  "stnNm",
+  "rideNope",
+  "gffNope",
+  "parklotno",
+  "parkzoneno",
+  "parklanecode",
+  "carstatus",
+  "carindate",
+  "terno",
+  "drvDt",
+  "trnNo",
+  "stnCd",
+  "planArrvDttm",
+  "planDptrDttm",
+  "trnClsfNm",
+  "flightId",
+  "airline",
+  "airport",
+  "airportCode",
+  "estimatedDateTime",
+  "scheduleDateTime",
+  "terminalid",
+  "remark",
+  "routeId",
+  "stopId",
+  "predTimes",
+  "busnumber",
+  "area",
+];
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function payloadItems(result) {
+  const data = result.payload?.data;
+  const body = data?.response?.body || data?.body || {};
+  const items = body.items?.item || body.items || [];
+  if (Array.isArray(items)) return items;
+  return items ? [items] : [];
+}
+
+function sampleEntries(item) {
+  if (!item) return [];
+  const priorityEntries = sampleFieldPriority
+    .filter((key) => item[key] !== undefined && item[key] !== null && item[key] !== "")
+    .map((key) => [key, item[key]]);
+  const fallbackEntries = Object.entries(item).filter(
+    ([key, value]) => !sampleFieldPriority.includes(key) && value !== undefined && value !== null && value !== ""
+  );
+  return [...priorityEntries, ...fallbackEntries].slice(0, 6);
+}
+
 function value(id) {
   return document.getElementById(id).value;
 }
@@ -169,6 +243,7 @@ function renderSnapshotStatus() {
   if (!publicDataSnapshot) {
     status.innerHTML = `<i class="warn"></i> Snapshot pending`;
     summary.textContent = "GitHub Actions 수집기를 실행하면 최신 공공 API 스냅샷이 표시됩니다.";
+    renderPublicDataDetails();
     return;
   }
 
@@ -184,6 +259,54 @@ function renderSnapshotStatus() {
   summary.textContent = `최근 수집: ${new Date(publicDataSnapshot.generatedAt).toLocaleString(
     "ko-KR"
   )} / 성공 ${ok}, 건너뜀 ${skipped}, 실패 ${failed}`;
+  renderPublicDataDetails();
+}
+
+function renderPublicDataDetails() {
+  const container = document.getElementById("publicDataDetails");
+  if (!container) return;
+
+  if (!publicDataSnapshot?.results?.length) {
+    container.innerHTML = `<div class="empty-state">아직 수집된 API 스냅샷이 없습니다.</div>`;
+    return;
+  }
+
+  const cards = publicDataSnapshot.results
+    .map((result) => {
+      const items = payloadItems(result);
+      const sample = sampleEntries(items[0]);
+      const statusClass = result.status === "ok" ? "ok" : result.status === "skipped" ? "skipped" : "failed";
+      const totalCount = result.summary?.totalCount ?? "-";
+      const itemCount = result.summary?.itemCount ?? items.length ?? "-";
+      const reason = result.reason || result.error || result.summary?.resultMsg || "";
+      const sampleHtml =
+        sample.length > 0
+          ? `<dl class="sample-grid">${sample
+              .map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`)
+              .join("")}</dl>`
+          : `<div class="empty-state">${escapeHtml(reason || "샘플 item이 없습니다.")}</div>`;
+
+      return `
+        <div class="snapshot-card">
+          <div class="snapshot-card-header">
+            <div class="snapshot-title">
+              <strong>${escapeHtml(datasetLabels[result.datasetId] || result.datasetId)}</strong>
+              <span>${escapeHtml(result.operationId)}</span>
+            </div>
+            <span class="snapshot-badge ${statusClass}">${escapeHtml(result.status)}</span>
+          </div>
+          <div class="snapshot-meta">
+            <span>items ${escapeHtml(itemCount)}</span>
+            <span>total ${escapeHtml(totalCount)}</span>
+            <span>code ${escapeHtml(result.summary?.resultCode ?? "-")}</span>
+          </div>
+          ${sampleHtml}
+        </div>
+      `;
+    })
+    .join("");
+
+  container.innerHTML = cards;
 }
 
 async function loadPublicDataSnapshot() {

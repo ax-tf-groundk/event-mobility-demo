@@ -430,6 +430,117 @@ h2 {
   line-height: 1.45;
 }
 
+.collector-details {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.empty-state {
+  padding: 14px;
+  border: 1px dashed #cbd5df;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  background: #fbfcfd;
+}
+
+.snapshot-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.snapshot-card-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.snapshot-title {
+  display: grid;
+  gap: 3px;
+}
+
+.snapshot-title strong {
+  font-size: 13px;
+}
+
+.snapshot-title span {
+  color: var(--muted);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.snapshot-badge {
+  min-width: 52px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.snapshot-badge.ok {
+  background: var(--green);
+}
+
+.snapshot-badge.skipped {
+  background: var(--amber);
+}
+
+.snapshot-badge.failed {
+  background: var(--red);
+}
+
+.snapshot-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.snapshot-meta span {
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: var(--soft);
+  color: #3c4753;
+  font-size: 12px;
+}
+
+.sample-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.sample-grid div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 7px;
+  border-radius: 4px;
+  background: var(--soft);
+}
+
+.sample-grid dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sample-grid dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .report-panel {
   grid-column: span 1;
 }
