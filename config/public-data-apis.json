@@ -1,0 +1,309 @@
+{
+  "auth": {
+    "serviceKeyEnv": "PUBLIC_DATA_SERVICE_KEY",
+    "serviceKeyParam": "serviceKey"
+  },
+  "datasets": [
+    {
+      "id": "station_ridership",
+      "provider": "Seoul Metro",
+      "name": "Seoul Metro station boarding/alighting count",
+      "baseUrl": "https://apis.data.go.kr/B553766/psgr",
+      "operations": [
+        {
+          "id": "get_station_passenger_counts",
+          "method": "GET",
+          "path": "/getStnPsgr",
+          "requiredParams": ["serviceKey", "pasngYmd"],
+          "optionalParams": [
+            "pageNo",
+            "numOfRows",
+            "dataType",
+            "stnCd",
+            "stnNm",
+            "pasngHr",
+            "trnscdSeCd",
+            "trnscdUserSeCd",
+            "lineNm"
+          ],
+          "defaultParams": {
+            "dataType": "JSON",
+            "pageNo": "1",
+            "numOfRows": "100"
+          },
+          "notes": "pasngYmd must be YYYYMMDD and within the recent one-week window."
+        }
+      ]
+    },
+    {
+      "id": "bus_arrivals",
+      "provider": "Seoul Metropolitan Government",
+      "name": "Seoul bus arrival information lookup",
+      "baseUrl": "http://ws.bus.go.kr/api/rest/arrive",
+      "operations": [
+        {
+          "id": "get_arrivals_by_route_all",
+          "method": "GET",
+          "path": "/getArrInfoByRouteAll",
+          "requiredParams": ["serviceKey", "busRouteId"],
+          "optionalParams": []
+        },
+        {
+          "id": "get_arrivals_by_route_stop",
+          "method": "GET",
+          "path": "/getArrInfoByRoute",
+          "requiredParams": ["serviceKey", "stId", "busRouteId", "ord"],
+          "optionalParams": []
+        },
+        {
+          "id": "get_low_floor_arrivals_by_stop",
+          "method": "GET",
+          "path": "/getLowArrInfoByStId",
+          "requiredParams": ["serviceKey", "stId"],
+          "optionalParams": []
+        },
+        {
+          "id": "get_low_floor_arrivals_by_route_stop",
+          "method": "GET",
+          "path": "/getLowArrInfoByRoute",
+          "requiredParams": ["serviceKey", "stId", "busRouteId", "ord"],
+          "optionalParams": []
+        }
+      ]
+    },
+    {
+      "id": "airport_parking_t1",
+      "provider": "Incheon International Airport Corporation",
+      "name": "Incheon Airport T1 parking space status",
+      "baseUrl": "https://apis.data.go.kr/B551177/ParkLocationData",
+      "operations": [
+        {
+          "id": "get_park_location_data",
+          "method": "GET",
+          "path": "/getParkLocationData",
+          "requiredParams": ["serviceKey", "pageNo", "numOfRows"],
+          "optionalParams": ["type", "terminalid"],
+          "defaultParams": {
+            "type": "json",
+            "terminalid": "T1",
+            "pageNo": "1",
+            "numOfRows": "100"
+          }
+        }
+      ]
+    },
+    {
+      "id": "airport_rail_runs",
+      "provider": "Incheon International Airport Corporation",
+      "name": "Incheon Airport airport railroad operation info",
+      "baseUrl": "https://apis.data.go.kr/B551177/AirportRailroadOperationInfo",
+      "operations": [
+        {
+          "id": "get_airport_railroad",
+          "method": "GET",
+          "path": "/getAirportRailroad",
+          "requiredParams": ["serviceKey", "pageNo", "numOfRows"],
+          "optionalParams": [
+            "trainClsf",
+            "drvDt",
+            "trnNo",
+            "stnCd",
+            "drvSer",
+            "tmp1",
+            "tmp2",
+            "type"
+          ],
+          "defaultParams": {
+            "type": "json",
+            "pageNo": "1",
+            "numOfRows": "100"
+          },
+          "notes": "trainClsf values: Comm for regular, Dirc for express. drvDt supports D-3 to D+3."
+        }
+      ]
+    },
+    {
+      "id": "airport_shuttles",
+      "provider": "Incheon International Airport Corporation",
+      "name": "Incheon Airport shuttle bus info",
+      "baseUrl": "https://apis.data.go.kr/B551177/ShtbusInfo",
+      "operations": [
+        {
+          "id": "get_shuttle_arrival_prediction",
+          "method": "GET",
+          "path": "/getShtbArrivalPredInfo",
+          "requiredParams": ["serviceKey"],
+          "optionalParams": ["type", "location", "numOfRows", "pageNo"],
+          "defaultParams": {
+            "type": "json",
+            "pageNo": "1",
+            "numOfRows": "100"
+          }
+        },
+        {
+          "id": "get_shuttle_time_info",
+          "method": "GET",
+          "path": "/getShtbTimeInfo",
+          "requiredParams": ["serviceKey", "numOfRows", "pageNo"],
+          "optionalParams": ["type", "day_type", "start_time"],
+          "defaultParams": {
+            "type": "json",
+            "day_type": "1",
+            "pageNo": "1",
+            "numOfRows": "100"
+          }
+        }
+      ]
+    },
+    {
+      "id": "airport_buses",
+      "provider": "Incheon International Airport Corporation",
+      "name": "Incheon Airport bus info",
+      "baseUrl": "https://apis.data.go.kr/B551177/BusInformation",
+      "operations": [
+        {
+          "id": "get_airport_bus_info",
+          "method": "GET",
+          "path": "/getBusInfo",
+          "requiredParams": ["serviceKey", "numOfRows", "pageNo", "area"],
+          "optionalParams": ["type"],
+          "defaultParams": {
+            "type": "json",
+            "area": "1",
+            "pageNo": "1",
+            "numOfRows": "100"
+          },
+          "notes": "area values: 1 Seoul, 2 Gyeonggi, 3 Incheon, 4 Gangwon, 5 Chungcheong, 6 Gyeongsang, 7 Jeolla."
+        }
+      ]
+    },
+    {
+      "id": "airport_passenger_forecast",
+      "provider": "Incheon International Airport Corporation",
+      "name": "Incheon Airport passenger forecast by departure/arrival hall",
+      "baseUrl": "https://apis.data.go.kr/B551177/passgrAnncmt",
+      "operations": [
+        {
+          "id": "get_passenger_announcement",
+          "method": "GET",
+          "path": "/getPassgrAnncmt",
+          "requiredParams": ["serviceKey", "numOfRows", "pageNo"],
+          "optionalParams": ["selectdate", "type"],
+          "defaultParams": {
+            "type": "json",
+            "selectdate": "0",
+            "pageNo": "1",
+            "numOfRows": "100"
+          },
+          "notes": "selectdate: 0 today, 1 tomorrow."
+        }
+      ]
+    },
+    {
+      "id": "airport_scheduled_flights",
+      "provider": "Incheon International Airport Corporation",
+      "name": "Incheon Airport scheduled passenger flights for tourism platforms",
+      "baseUrl": "https://apis.data.go.kr/B551177/statusOfSPaxFlt4TripPlatform",
+      "operations": [
+        {
+          "id": "get_scheduled_departures",
+          "method": "GET",
+          "path": "/getSPaxFlt4TripPlatformDepartures",
+          "requiredParams": ["serviceKey", "pageNo", "numOfRows"],
+          "optionalParams": [
+            "flightId",
+            "season",
+            "terminalId",
+            "airport",
+            "airportCode",
+            "tmp1",
+            "tmp2",
+            "type"
+          ],
+          "defaultParams": {
+            "type": "json",
+            "pageNo": "1",
+            "numOfRows": "100"
+          }
+        },
+        {
+          "id": "get_scheduled_arrivals",
+          "method": "GET",
+          "path": "/getSPaxFlt4TripPlatformArrivals",
+          "requiredParams": ["serviceKey", "pageNo", "numOfRows"],
+          "optionalParams": [
+            "flightId",
+            "season",
+            "terminalId",
+            "airport",
+            "airportCode",
+            "tmp1",
+            "tmp2",
+            "type"
+          ],
+          "defaultParams": {
+            "type": "json",
+            "pageNo": "1",
+            "numOfRows": "100"
+          }
+        }
+      ]
+    },
+    {
+      "id": "airport_flight_operations",
+      "provider": "Incheon International Airport Corporation",
+      "name": "Incheon Airport passenger flight operation detail",
+      "baseUrl": "https://apis.data.go.kr/B551177/StatusOfPassengerFlightsDeOdp",
+      "operations": [
+        {
+          "id": "get_passenger_arrivals",
+          "method": "GET",
+          "path": "/getPassengerArrivalsDeOdp",
+          "requiredParams": ["serviceKey", "pageNo", "numOfRows"],
+          "optionalParams": [
+            "type",
+            "searchday",
+            "from_time",
+            "to_time",
+            "airport_code",
+            "f_id",
+            "flight_id",
+            "lang",
+            "inqtimechcd"
+          ],
+          "defaultParams": {
+            "type": "json",
+            "lang": "K",
+            "inqtimechcd": "E",
+            "pageNo": "1",
+            "numOfRows": "100"
+          }
+        },
+        {
+          "id": "get_passenger_departures",
+          "method": "GET",
+          "path": "/getPassengerDeparturesDeOdp",
+          "requiredParams": ["serviceKey", "pageNo", "numOfRows"],
+          "optionalParams": [
+            "type",
+            "searchday",
+            "from_time",
+            "to_time",
+            "airport_code",
+            "f_id",
+            "flight_id",
+            "lang",
+            "inqtimechcd"
+          ],
+          "defaultParams": {
+            "type": "json",
+            "lang": "K",
+            "inqtimechcd": "E",
+            "pageNo": "1",
+            "numOfRows": "100"
+          }
+        }
+      ]
+    }
+  ]
+}

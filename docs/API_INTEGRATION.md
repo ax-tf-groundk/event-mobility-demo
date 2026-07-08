@@ -70,3 +70,27 @@ For each API, collect:
 ## First Connector Target
 
 Start with `airport_flight_operations`, `airport_passenger_forecast`, and `airport_buses` because they directly support the event-arrival demand model.
+
+## Connector Catalog
+
+Machine-readable connector metadata is stored in [`config/public-data-apis.json`](../config/public-data-apis.json). It includes base URLs, operation paths, required parameters, optional parameters, and safe default parameters. The catalog intentionally references only environment variable names, never real service keys.
+
+## Endpoint Summary
+
+| Dataset ID | Operation | Method | Base URL | Path | Required params |
+|---|---|---|---|---|---|
+| `station_ridership` | `get_station_passenger_counts` | GET | `https://apis.data.go.kr/B553766/psgr` | `/getStnPsgr` | `serviceKey`, `pasngYmd` |
+| `bus_arrivals` | `get_arrivals_by_route_all` | GET | `http://ws.bus.go.kr/api/rest/arrive` | `/getArrInfoByRouteAll` | `serviceKey`, `busRouteId` |
+| `bus_arrivals` | `get_arrivals_by_route_stop` | GET | `http://ws.bus.go.kr/api/rest/arrive` | `/getArrInfoByRoute` | `serviceKey`, `stId`, `busRouteId`, `ord` |
+| `bus_arrivals` | `get_low_floor_arrivals_by_stop` | GET | `http://ws.bus.go.kr/api/rest/arrive` | `/getLowArrInfoByStId` | `serviceKey`, `stId` |
+| `bus_arrivals` | `get_low_floor_arrivals_by_route_stop` | GET | `http://ws.bus.go.kr/api/rest/arrive` | `/getLowArrInfoByRoute` | `serviceKey`, `stId`, `busRouteId`, `ord` |
+| `airport_parking_t1` | `get_park_location_data` | GET | `https://apis.data.go.kr/B551177/ParkLocationData` | `/getParkLocationData` | `serviceKey`, `pageNo`, `numOfRows` |
+| `airport_rail_runs` | `get_airport_railroad` | GET | `https://apis.data.go.kr/B551177/AirportRailroadOperationInfo` | `/getAirportRailroad` | `serviceKey`, `pageNo`, `numOfRows` |
+| `airport_shuttles` | `get_shuttle_arrival_prediction` | GET | `https://apis.data.go.kr/B551177/ShtbusInfo` | `/getShtbArrivalPredInfo` | `serviceKey` |
+| `airport_shuttles` | `get_shuttle_time_info` | GET | `https://apis.data.go.kr/B551177/ShtbusInfo` | `/getShtbTimeInfo` | `serviceKey`, `numOfRows`, `pageNo` |
+| `airport_buses` | `get_airport_bus_info` | GET | `https://apis.data.go.kr/B551177/BusInformation` | `/getBusInfo` | `serviceKey`, `numOfRows`, `pageNo`, `area` |
+| `airport_passenger_forecast` | `get_passenger_announcement` | GET | `https://apis.data.go.kr/B551177/passgrAnncmt` | `/getPassgrAnncmt` | `serviceKey`, `numOfRows`, `pageNo` |
+| `airport_scheduled_flights` | `get_scheduled_departures` | GET | `https://apis.data.go.kr/B551177/statusOfSPaxFlt4TripPlatform` | `/getSPaxFlt4TripPlatformDepartures` | `serviceKey`, `pageNo`, `numOfRows` |
+| `airport_scheduled_flights` | `get_scheduled_arrivals` | GET | `https://apis.data.go.kr/B551177/statusOfSPaxFlt4TripPlatform` | `/getSPaxFlt4TripPlatformArrivals` | `serviceKey`, `pageNo`, `numOfRows` |
+| `airport_flight_operations` | `get_passenger_arrivals` | GET | `https://apis.data.go.kr/B551177/StatusOfPassengerFlightsDeOdp` | `/getPassengerArrivalsDeOdp` | `serviceKey`, `pageNo`, `numOfRows` |
+| `airport_flight_operations` | `get_passenger_departures` | GET | `https://apis.data.go.kr/B551177/StatusOfPassengerFlightsDeOdp` | `/getPassengerDeparturesDeOdp` | `serviceKey`, `pageNo`, `numOfRows` |
