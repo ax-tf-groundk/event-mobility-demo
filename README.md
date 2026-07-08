@@ -22,6 +22,14 @@ This repo includes a GitHub Actions collector:
 
 Set the repository secret `PUBLIC_DATA_SERVICE_KEY`, then run **Collect public mobility data** from GitHub Actions. The frontend should read only the generated JSON snapshot, never the API key.
 
+To set the secret manually:
+
+1. Open `Settings` in the GitHub repository.
+2. Go to `Secrets and variables` -> `Actions`.
+3. Create a new repository secret named `PUBLIC_DATA_SERVICE_KEY`.
+4. Paste the public-data service key.
+5. Run `Actions` -> `Collect public mobility data` -> `Run workflow`.
+
 Recommended fields to share for each API:
 
 - Provider and API name

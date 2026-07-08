@@ -9,6 +9,20 @@ const serviceKey = process.env.PUBLIC_DATA_SERVICE_KEY;
 
 const now = new Date();
 
+if (!serviceKey) {
+  console.log(
+    JSON.stringify(
+      {
+        status: "skipped",
+        reason: "PUBLIC_DATA_SERVICE_KEY is not configured. No snapshot was written.",
+      },
+      null,
+      2
+    )
+  );
+  process.exit(0);
+}
+
 function kstDate(offsetDays = 0) {
   const date = new Date(now.getTime() + (9 * 60 * 60 + offsetDays * 24 * 60 * 60) * 1000);
   const year = date.getUTCFullYear();
@@ -103,15 +117,6 @@ function summarizePayload(parsed) {
 
 async function collectOperation(dataset, operation) {
   const { params, missing } = buildParams(operation);
-
-  if (!serviceKey) {
-    return {
-      datasetId: dataset.id,
-      operationId: operation.id,
-      status: "skipped",
-      reason: "PUBLIC_DATA_SERVICE_KEY is not configured",
-    };
-  }
 
   if (missing.length > 0) {
     return {
