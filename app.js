@@ -47,6 +47,7 @@ const demandShape = [
 ];
 
 const formatter = new Intl.NumberFormat("ko-KR");
+let publicDataSnapshot = null;
 
 function value(id) {
   return document.getElementById(id).value;
@@ -141,6 +142,9 @@ function renderReport(model) {
   const foreignPercent = Math.round(model.foreignRatio * 100);
   const airportPercent = Math.round(model.airportRatio * 100);
   const riskLabel = model.riskScore >= 75 ? "높은" : model.riskScore >= 58 ? "중간 이상의" : "관리 가능한";
+  const snapshotNote = publicDataSnapshot
+    ? `<p>최근 공공 API 스냅샷은 <strong>${new Date(publicDataSnapshot.generatedAt).toLocaleString("ko-KR")}</strong>에 생성됐습니다. 현재 수집 결과는 분석 보조 신호로 사용하며, 키는 브라우저에 노출되지 않습니다.</p>`
+    : `<p>현재 화면은 데모 계산값을 사용합니다. GitHub Actions 수집기가 실행되면 공공 API 스냅샷을 읽어 보조 지표로 반영합니다.</p>`;
 
   document.getElementById("report").innerHTML = `
     <p><strong>${model.eventName}</strong>은 ${model.venue.label} 접근 행사로, 전체 참가자 ${formatter.format(
@@ -152,7 +156,46 @@ function renderReport(model) {
     <p>권장안은 ${model.venue.hubs.join(", ")}를 기준으로 공항 직행 셔틀과 시내 순환 셔틀을 분리하는 방식입니다. 현재 조건에서는 ${formatter.format(
       model.busCount
     )}대 규모의 셔틀 운영안이 필요하며, 리스크 수준은 ${riskLabel} 편입니다.</p>
+    ${snapshotNote}
   `;
+}
+
+function renderSnapshotStatus() {
+  const status = document.getElementById("snapshotStatus");
+  const summary = document.getElementById("collectorSummary");
+
+  if (!status || !summary) return;
+
+  if (!publicDataSnapshot) {
+    status.innerHTML = `<i class="warn"></i> Snapshot pending`;
+    summary.textContent = "GitHub Actions 수집기를 실행하면 최신 공공 API 스냅샷이 표시됩니다.";
+    return;
+  }
+
+  const counts = publicDataSnapshot.results.reduce((acc, result) => {
+    acc[result.status] = (acc[result.status] || 0) + 1;
+    return acc;
+  }, {});
+  const ok = counts.ok || 0;
+  const skipped = counts.skipped || 0;
+  const failed = (counts.http_error || 0) + (counts.fetch_error || 0);
+
+  status.innerHTML = `<i class="${failed > 0 ? "warn" : "ok"}"></i> Snapshot ${ok} ok`;
+  summary.textContent = `최근 수집: ${new Date(publicDataSnapshot.generatedAt).toLocaleString(
+    "ko-KR"
+  )} / 성공 ${ok}, 건너뜀 ${skipped}, 실패 ${failed}`;
+}
+
+async function loadPublicDataSnapshot() {
+  try {
+    const response = await fetch("public-data/latest.json", { cache: "no-store" });
+    if (!response.ok) return;
+    publicDataSnapshot = await response.json();
+    renderSnapshotStatus();
+    render();
+  } catch {
+    renderSnapshotStatus();
+  }
 }
 
 function render() {
@@ -184,3 +227,4 @@ document.getElementById("analyzeBtn").addEventListener("click", render);
 document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", render));
 
 render();
+loadPublicDataSnapshot();

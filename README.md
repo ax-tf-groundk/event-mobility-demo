@@ -12,6 +12,16 @@ Current integration notes: [`docs/API_INTEGRATION.md`](docs/API_INTEGRATION.md)
 
 Copy `.env.example` to `.env` locally and put real keys only in `.env`.
 
+## Public Data Collector
+
+This repo includes a GitHub Actions collector:
+
+- Workflow: `.github/workflows/collect-public-data.yml`
+- Script: `scripts/collect-public-data.mjs`
+- Output: `public-data/latest.json`
+
+Set the repository secret `PUBLIC_DATA_SERVICE_KEY`, then run **Collect public mobility data** from GitHub Actions. The frontend should read only the generated JSON snapshot, never the API key.
+
 Recommended fields to share for each API:
 
 - Provider and API name
