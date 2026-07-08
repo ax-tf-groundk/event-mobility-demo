@@ -1,6 +1,23 @@
 # Event Mobility Control Demo
 
+Demo URL: https://ax-tf-groundk.github.io/event-mobility-demo/
+
 Static GitHub Pages demo for an airport-to-city event mobility consulting MVP.
+
+## API Handoff
+
+You can share API specifications in the working thread. For API keys, do not commit them to this public repository. Use local `.env` files for development and GitHub Secrets for hosted/API-backed deployments.
+
+Recommended fields to share for each API:
+
+- Provider and API name
+- Documentation URL
+- Base URL
+- Auth method
+- Sample request
+- Sample response
+- Rate limits
+- Issued key name, without exposing the key in committed files
 
 ## What this demo shows
 
@@ -39,4 +56,3 @@ Static GitHub Pages demo for an airport-to-city event mobility consulting MVP.
 ## GitHub Pages
 
 This project is static. Push it to a GitHub repository and enable GitHub Pages with GitHub Actions, or use the included workflow.
-
