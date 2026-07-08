@@ -8,6 +8,10 @@ Static GitHub Pages demo for an airport-to-city event mobility consulting MVP.
 
 You can share API specifications in the working thread. For API keys, do not commit them to this public repository. Use local `.env` files for development and GitHub Secrets for hosted/API-backed deployments.
 
+Current integration notes: [`docs/API_INTEGRATION.md`](docs/API_INTEGRATION.md)
+
+Copy `.env.example` to `.env` locally and put real keys only in `.env`.
+
 Recommended fields to share for each API:
 
 - Provider and API name
