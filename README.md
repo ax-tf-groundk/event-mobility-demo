@@ -1,4 +1,4 @@
-# T-RiseUp Event Mobility Control Demo
+# Event Mobility Control Demo
 
 Static GitHub Pages demo for an airport-to-city event mobility consulting MVP.
 
