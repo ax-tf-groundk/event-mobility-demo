@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>T-RiseUp Event Mobility Control</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">T</div>
+          <div>
+            <strong>T-RiseUp</strong>
+            <span>Event Mobility Control</span>
+          </div>
+        </div>
+
+        <form id="eventForm" class="control-panel">
+          <label>
+            행사명
+            <input id="eventName" value="Global AI Summit Seoul 2026" />
+          </label>
+
+          <label>
+            행사장
+            <select id="venue">
+              <option value="coex">COEX</option>
+              <option value="ddp">DDP</option>
+              <option value="kintex">KINTEX</option>
+              <option value="bexco">BEXCO</option>
+            </select>
+          </label>
+
+          <div class="field-grid">
+            <label>
+              참가자
+              <input id="attendees" type="number" min="100" step="100" value="8000" />
+            </label>
+            <label>
+              VIP
+              <input id="vip" type="number" min="0" step="10" value="120" />
+            </label>
+          </div>
+
+          <label>
+            외국인 비율
+            <input id="foreignRatio" type="range" min="0" max="100" value="45" />
+            <span class="range-value"><span id="foreignRatioValue">45</span>%</span>
+          </label>
+
+          <label>
+            인천공항 이용 비율
+            <input id="airportRatio" type="range" min="0" max="100" value="60" />
+            <span class="range-value"><span id="airportRatioValue">60</span>%</span>
+          </label>
+
+          <label>
+            운영 우선순위
+            <select id="policy">
+              <option value="balanced">균형 운영</option>
+              <option value="shuttle">셔틀 보강</option>
+              <option value="public">대중교통 우선</option>
+              <option value="vip">VIP 분리 우선</option>
+            </select>
+          </label>
+
+          <button type="button" id="analyzeBtn">분석 생성</button>
+        </form>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Public API Simulation</p>
+            <h1 id="title">Global AI Summit Seoul 2026</h1>
+          </div>
+          <div class="status-strip" aria-label="API connection status">
+            <span><i class="ok"></i> ICN Airport</span>
+            <span><i class="ok"></i> ITS</span>
+            <span><i class="warn"></i> Seoul Transit</span>
+            <span><i class="ok"></i> Weather</span>
+          </div>
+        </header>
+
+        <section class="map-band">
+          <div class="network-map" aria-label="mobility network map">
+            <div class="node airport">ICN</div>
+            <div class="node hotel hotel-a">Gangnam</div>
+            <div class="node hotel hotel-b">Myeongdong</div>
+            <div class="node hotel hotel-c">Yeouido</div>
+            <div class="node venue-node">COEX</div>
+            <svg viewBox="0 0 1000 360" role="img" aria-label="transport corridors">
+              <path class="route primary" d="M80 210 C230 130 330 110 470 160 C590 205 690 210 850 172" />
+              <path class="route secondary" d="M470 160 C520 75 650 52 780 88" />
+              <path class="route secondary" d="M470 160 C560 240 675 280 810 270" />
+              <path class="route tertiary" d="M780 88 C830 110 865 135 850 172" />
+              <path class="route tertiary" d="M810 270 C865 235 885 205 850 172" />
+            </svg>
+          </div>
+          <div class="map-stats">
+            <div>
+              <span>공항 도착 수요</span>
+              <strong id="airportDemand">4,800</strong>
+            </div>
+            <div>
+              <span>대중교통 흡수</span>
+              <strong id="publicCapacity">2,736</strong>
+            </div>
+            <div>
+              <span>셔틀 보강 수요</span>
+              <strong id="shuttleDemand">2,064</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="metrics">
+          <article class="metric">
+            <span>Peak Window</span>
+            <strong id="peakWindow">17:00-20:00</strong>
+            <p id="peakCopy">항공 도착과 호텔 체크인이 겹치는 구간</p>
+          </article>
+          <article class="metric">
+            <span>Risk Score</span>
+            <strong id="riskScore">72</strong>
+            <p id="riskCopy">환승 복잡도와 VIP 분리 필요도 높음</p>
+          </article>
+          <article class="metric">
+            <span>Required Buses</span>
+            <strong id="busCount">39</strong>
+            <p id="busCopy">45인승, 예비차 15% 포함</p>
+          </article>
+          <article class="metric">
+            <span>Transfer Hubs</span>
+            <strong id="hubCount">3</strong>
+            <p id="hubCopy">강남, 명동, 여의도 권역 운영</p>
+          </article>
+        </section>
+
+        <section class="analysis-grid">
+          <article class="panel">
+            <div class="panel-header">
+              <h2>시간대별 수요</h2>
+              <span>ICN arrivals</span>
+            </div>
+            <div id="demandBars" class="bars"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <h2>API 데이터 레이어</h2>
+              <span>connector plan</span>
+            </div>
+            <ul class="api-list">
+              <li><strong>인천공항</strong><span>운항, 승객예고, 버스, 셔틀, 열차, 주차</span></li>
+              <li><strong>ITS</strong><span>교통소통, 돌발상황, CCTV, 표준노드링크</span></li>
+              <li><strong>서울</strong><span>버스, 지하철, 승하차, 생활이동, 주차</span></li>
+              <li><strong>기상</strong><span>단기예보, 특보, 강수, 폭염</span></li>
+            </ul>
+          </article>
+
+          <article class="panel report-panel">
+            <div class="panel-header">
+              <h2>AI 교통대책 초안</h2>
+              <span>consulting output</span>
+            </div>
+            <div id="report" class="report"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <h2>운영안</h2>
+              <span>draft timetable</span>
+            </div>
+            <div id="planList" class="plan-list"></div>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
