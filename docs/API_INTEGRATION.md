@@ -2,19 +2,28 @@
 
 ## Received API Approvals
 
-The following API approvals have been provided by the project owner. The actual service key must stay outside the public repository.
+The following API approvals and documentation URLs have been provided by the project owner. The actual service key must stay outside the public repository.
 
-| No. | API | Env var |
-|---:|---|---|
-| 1 | 역별승하차인원 | `PUBLIC_DATA_SERVICE_KEY` |
-| 2 | 버스도착정보 | `PUBLIC_DATA_SERVICE_KEY` |
-| 3 | T1 주차면 현황 정보 | `PUBLIC_DATA_SERVICE_KEY` |
-| 4 | 공항철도 운행 정보 | `PUBLIC_DATA_SERVICE_KEY` |
-| 5 | 공항 셔틀버스 정보 | `PUBLIC_DATA_SERVICE_KEY` |
-| 6 | 공항 버스 정보 | `PUBLIC_DATA_SERVICE_KEY` |
-| 7 | 공항 승객예고 출입국장별 | `PUBLIC_DATA_SERVICE_KEY` |
-| 8 | 공항 정기운항편조회(관광플랫폼용) | `PUBLIC_DATA_SERVICE_KEY` |
-| 9 | 공항 여객기운항상세조회서비스 | `PUBLIC_DATA_SERVICE_KEY` |
+| No. | Dataset ID | Source API | Documentation URL | Env var |
+|---:|---|---|---|---|
+| 1 | `station_ridership` | Seoul Metro station boarding/alighting count | https://www.data.go.kr/data/15143845/openapi.do | `PUBLIC_DATA_SERVICE_KEY` |
+| 2 | `bus_arrivals` | Seoul bus arrival information lookup | https://www.data.go.kr/data/15000314/openapi.do | `PUBLIC_DATA_SERVICE_KEY` |
+| 3 | `airport_parking_t1` | Incheon Airport T1 parking space status | https://www.data.go.kr/data/15107228/openapi.do | `PUBLIC_DATA_SERVICE_KEY` |
+| 4 | `airport_rail_runs` | Incheon Airport airport railroad operation info | https://www.data.go.kr/data/15098226/openapi.do | `PUBLIC_DATA_SERVICE_KEY` |
+| 5 | `airport_shuttles` | Incheon Airport shuttle bus info | https://www.data.go.kr/data/15098224/openapi.do | `PUBLIC_DATA_SERVICE_KEY` |
+| 6 | `airport_buses` | Incheon Airport bus info | https://www.data.go.kr/data/15095045/openapi.do | `PUBLIC_DATA_SERVICE_KEY` |
+| 7 | `airport_passenger_forecast` | Incheon Airport passenger forecast by departure/arrival hall | https://www.data.go.kr/data/15095066/openapi.do | `PUBLIC_DATA_SERVICE_KEY` |
+| 8 | `airport_scheduled_flights` | Incheon Airport scheduled passenger flights for tourism platforms | https://www.data.go.kr/data/15143060/openapi.do | `PUBLIC_DATA_SERVICE_KEY` |
+| 9 | `airport_flight_operations` | Incheon Airport passenger flight operation detail | https://www.data.go.kr/data/15112968/openapi.do | `PUBLIC_DATA_SERVICE_KEY` |
+
+## Confirmed Metadata
+
+| Dataset ID | Provider | Format | Update cycle | Notes |
+|---|---|---|---|---|
+| `airport_flight_operations` | Incheon International Airport Corporation | JSON + XML | Real-time | Provides passenger departure/arrival flight operation status from D-3 to D+6. |
+| `airport_scheduled_flights` | Incheon International Airport Corporation | JSON + XML | Real-time | Provides seasonal scheduled passenger flight data for travel/tourism platforms. |
+| `airport_shuttles` | Incheon International Airport Corporation | JSON + XML | Real-time | Includes shuttle arrival prediction and departure time functions. |
+| `station_ridership` | Seoul Metro | JSON + XML | Real-time / daily recent data | Provides station-level boarding and alighting counts; recent one-week window noted on data.go.kr. |
 
 ## Security Rule
 
@@ -32,8 +41,8 @@ For the current GitHub Pages demo, the safest next step is a scheduled collector
 
 For each API, collect:
 
-- Documentation URL
 - Base URL
+- Operation path
 - HTTP method
 - Auth parameter name
 - Required request parameters
@@ -58,3 +67,6 @@ For each API, collect:
 | `airport_scheduled_flights` | Forecast event-week flight concentration |
 | `airport_flight_operations` | Monitor operational delay and live flight state |
 
+## First Connector Target
+
+Start with `airport_flight_operations`, `airport_passenger_forecast`, and `airport_buses` because they directly support the event-arrival demand model.
