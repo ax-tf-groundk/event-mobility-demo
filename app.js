@@ -112,6 +112,251 @@ function payloadItems(result) {
   return items ? [items] : [];
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function numeric(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseCompactDateTime(value) {
+  const text = String(value || "");
+  if (!/^\d{12,14}$/.test(text)) return null;
+  return new Date(
+    Number(text.slice(0, 4)),
+    Number(text.slice(4, 6)) - 1,
+    Number(text.slice(6, 8)),
+    Number(text.slice(8, 10)),
+    Number(text.slice(10, 12)),
+    Number(text.slice(12, 14) || 0)
+  );
+}
+
+function findResult(datasetId, operationId) {
+  return publicDataSnapshot?.results?.find(
+    (entry) => entry.datasetId === datasetId && (!operationId || entry.operationId === operationId)
+  );
+}
+
+function resultItems(datasetId, operationId) {
+  const result = findResult(datasetId, operationId);
+  return result?.status === "ok" ? payloadItems(result) : [];
+}
+
+function resultTotal(datasetId, operationId) {
+  return numeric(findResult(datasetId, operationId)?.summary?.totalCount);
+}
+
+function resultSampleRatio(datasetId, operationId) {
+  const result = findResult(datasetId, operationId);
+  const total = numeric(result?.summary?.totalCount);
+  const items = numeric(result?.summary?.itemCount) || payloadItems(result || {}).length;
+  return total > 0 ? clamp(items / total, 0, 1) : items > 0 ? 1 : 0;
+}
+
+function buildPublicDataSignals(venueKey) {
+  if (!publicDataSnapshot) {
+    return {
+      active: false,
+      confidence: 0,
+      supplyModifier: 1,
+      riskDelta: 0,
+      reserveRatio: 0.15,
+      peakWindow: null,
+      demandShape,
+      signals: [],
+    };
+  }
+
+  const generatedAt = new Date(publicDataSnapshot.generatedAt);
+  const ageHours = Math.max(0, (Date.now() - generatedAt.getTime()) / 36e5);
+  const freshness = clamp(Math.round(100 - Math.max(0, ageHours - 2) * 1.5), 25, 100);
+  const freshnessWeight = freshness / 100;
+
+  const forecast = resultItems("airport_passenger_forecast", "get_passenger_announcement");
+  const forecastDate = forecast[0]?.adate;
+  const forecastDay = forecast.filter((item) => !forecastDate || item.adate === forecastDate);
+  const hourlyArrivals = forecastDay.map((item) => ({
+    label: String(item.atime || "").replace("_", ":"),
+    value: numeric(item.t1egsum1) + numeric(item.t2egsum1),
+  }));
+  const totalForecastArrivals = hourlyArrivals.reduce((sum, item) => sum + item.value, 0);
+  const peakArrival = hourlyArrivals.reduce(
+    (peak, item) => (item.value > peak.value ? item : peak),
+    { label: "", value: 0 }
+  );
+  const hourlyAverage = totalForecastArrivals / Math.max(1, hourlyArrivals.length);
+  const arrivalPressure = clamp((peakArrival.value / Math.max(1, hourlyAverage) - 1) / 2.2, 0, 1);
+
+  const forecastGroups = [];
+  for (let index = 0; index < hourlyArrivals.length; index += 3) {
+    const group = hourlyArrivals.slice(index, index + 3);
+    const start = String(index).padStart(2, "0");
+    const end = String(Math.min(index + 3, 24)).padStart(2, "0");
+    forecastGroups.push([`${start}-${end}`, group.reduce((sum, item) => sum + item.value, 0)]);
+  }
+  const groupedTotal = forecastGroups.reduce((sum, [, count]) => sum + count, 0);
+  const apiDemandShape =
+    groupedTotal > 0 ? forecastGroups.map(([label, count]) => [label, count / groupedTotal]) : demandShape;
+
+  const flights = resultItems("airport_flight_operations", "get_passenger_arrivals").filter(
+    (item) => String(item.codeshare || "").toLowerCase() !== "slave"
+  );
+  const flightDelays = flights
+    .map((item) => {
+      const scheduled = parseCompactDateTime(item.scheduleDateTime);
+      const estimated = parseCompactDateTime(item.estimatedDateTime);
+      return scheduled && estimated ? Math.max(0, (estimated - scheduled) / 60000) : null;
+    })
+    .filter((delay) => delay !== null);
+  const delayRatio = flightDelays.filter((delay) => delay >= 15).length / Math.max(1, flightDelays.length);
+  const averageDelay = flightDelays.reduce((sum, delay) => sum + delay, 0) / Math.max(1, flightDelays.length);
+
+  const railRuns = resultItems("airport_rail_runs", "get_airport_railroad");
+  const railDelays = railRuns
+    .map((item) => {
+      const planned = parseCompactDateTime(item.planArrvDttm);
+      const actual = parseCompactDateTime(item.accomArrvDttm);
+      return planned && actual ? Math.max(0, (actual - planned) / 60000) : null;
+    })
+    .filter((delay) => delay !== null);
+  const railOnTimeRatio =
+    railDelays.length > 0
+      ? railDelays.filter((delay) => delay <= 3).length / railDelays.length
+      : 0.85;
+
+  const airportBusRoutes =
+    resultTotal("airport_buses", "get_airport_bus_info") ||
+    resultItems("airport_buses", "get_airport_bus_info").length;
+
+  const parking = resultItems("airport_parking_t1", "get_park_location_data");
+  const parkingActiveRatio =
+    parking.length > 0
+      ? parking.filter((item) => String(item.carstatus || "").toUpperCase() === "Y").length / parking.length
+      : 0;
+
+  const stationRows = venueKey === "coex" ? resultItems("station_ridership", "get_station_passenger_counts") : [];
+  const stationByHour = stationRows.reduce((hours, item) => {
+    const hour = String(item.pasngHr || "");
+    hours[hour] = (hours[hour] || 0) + numeric(item.rideNope) + numeric(item.gffNope);
+    return hours;
+  }, {});
+  const stationVolumes = Object.values(stationByHour);
+  const stationAverage =
+    stationVolumes.reduce((sum, count) => sum + count, 0) / Math.max(1, stationVolumes.length);
+  const stationPeak = stationVolumes.length ? Math.max(...stationVolumes) : 0;
+  const stationPressure = stationVolumes.length
+    ? clamp((stationPeak / Math.max(1, stationAverage) - 1) / 1.5, 0, 1)
+    : 0;
+
+  const successfulInputs = [
+    forecastDay.length > 0,
+    flightDelays.length > 0,
+    railDelays.length > 0,
+    airportBusRoutes > 0,
+    parking.length > 0,
+    venueKey !== "coex" || stationRows.length > 0,
+  ].filter(Boolean).length;
+  const coverage = successfulInputs / 6;
+  const relevantSampleRatios = [
+    resultSampleRatio("airport_passenger_forecast", "get_passenger_announcement"),
+    resultSampleRatio("airport_flight_operations", "get_passenger_arrivals"),
+    resultSampleRatio("airport_rail_runs", "get_airport_railroad"),
+    resultSampleRatio("airport_buses", "get_airport_bus_info"),
+    resultSampleRatio("airport_parking_t1", "get_park_location_data"),
+  ];
+  if (venueKey === "coex") {
+    relevantSampleRatios.push(resultSampleRatio("station_ridership", "get_station_passenger_counts"));
+  }
+  const sampleCoverage =
+    relevantSampleRatios.reduce((sum, ratio) => sum + ratio, 0) / Math.max(1, relevantSampleRatios.length);
+  const confidence = Math.round(
+    (coverage * 0.45 + freshnessWeight * 0.25 + sampleCoverage * 0.3) * 100
+  );
+
+  const rawSupplyModifier =
+    1 +
+    clamp((airportBusRoutes - 25) / 400, -0.03, 0.045) +
+    clamp((railOnTimeRatio - 0.85) * 0.18, -0.055, 0.027) -
+    arrivalPressure * 0.045 -
+    delayRatio * 0.035 -
+    stationPressure * 0.035;
+  const supplyModifier = 1 + (clamp(rawSupplyModifier, 0.86, 1.08) - 1) * freshnessWeight;
+  const riskDelta = Math.round(
+    (arrivalPressure * 7 +
+      delayRatio * 8 +
+      parkingActiveRatio * 2 +
+      stationPressure * 5 +
+      Math.max(0, 0.85 - railOnTimeRatio) * 16) *
+      freshnessWeight
+  );
+  const reserveRatio = clamp(0.15 + (delayRatio * 0.06 + arrivalPressure * 0.04) * freshnessWeight, 0.15, 0.25);
+
+  const signals = [
+    {
+      label: "입국 수요 집중",
+      value: `${formatter.format(Math.round(peakArrival.value))}명 / ${peakArrival.label || "-"}`,
+      note: `승객예고 ${hourlyArrivals.length}개 시간대, 일 합계 ${formatter.format(Math.round(totalForecastArrivals))}명`,
+      impact: `위험도 +${Math.round(arrivalPressure * 7 * freshnessWeight)}`,
+      tone: arrivalPressure > 0.45 ? "negative" : "neutral",
+    },
+    {
+      label: "항공 도착 지연",
+      value: `${Math.round(delayRatio * 100)}% 지연`,
+      note: `마스터편 표본 ${flightDelays.length}편, 평균 ${averageDelay.toFixed(1)}분`,
+      impact: `위험도 +${Math.round(delayRatio * 8 * freshnessWeight)}`,
+      tone: delayRatio > 0.25 ? "negative" : "neutral",
+    },
+    {
+      label: "공항철도 정시성",
+      value: `${Math.round(railOnTimeRatio * 100)}%`,
+      note: `도착실적이 있는 운행 표본 ${railDelays.length}건`,
+      impact: railOnTimeRatio >= 0.85 ? "수용력 상향" : "수용력 하향",
+      tone: railOnTimeRatio >= 0.85 ? "positive" : "negative",
+    },
+    {
+      label: "공항버스 공급망",
+      value: `${formatter.format(airportBusRoutes)}개 노선`,
+      note: "공개 API의 전체 노선 수 기준",
+      impact: airportBusRoutes >= 25 ? "수용력 상향" : "수용력 하향",
+      tone: airportBusRoutes >= 25 ? "positive" : "negative",
+    },
+    {
+      label: "T1 주차면 상태",
+      value: `Y ${Math.round(parkingActiveRatio * 100)}%`,
+      note: `주차면 표본 ${parking.length}건의 상태 코드 비율`,
+      impact: `위험도 +${Math.round(parkingActiveRatio * 2 * freshnessWeight)}`,
+      tone: parkingActiveRatio > 0.8 ? "negative" : "neutral",
+    },
+  ];
+
+  if (venueKey === "coex" && stationRows.length > 0) {
+    signals.push({
+      label: "행사장 인근 혼잡",
+      value: `피크 ${formatter.format(Math.round(stationPeak))}명`,
+      note: `삼성역 수집 표본 ${stationRows.length}건의 시간대 상대 혼잡`,
+      impact: `위험도 +${Math.round(stationPressure * 5 * freshnessWeight)}`,
+      tone: stationPressure > 0.4 ? "negative" : "neutral",
+    });
+  }
+
+  return {
+    active: true,
+    confidence,
+    freshness,
+    ageHours,
+    sampleCoverage,
+    supplyModifier,
+    riskDelta,
+    reserveRatio,
+    peakWindow: peakArrival.label || null,
+    demandShape: apiDemandShape,
+    signals,
+  };
+}
+
 function sampleEntries(item) {
   if (!item) return [];
   const priorityEntries = sampleFieldPriority
@@ -137,7 +382,8 @@ function setText(id, text) {
 
 function calculate() {
   const eventName = value("eventName").trim() || "Untitled Event";
-  const venue = venueProfiles[value("venue")];
+  const venueKey = value("venue");
+  const venue = venueProfiles[venueKey];
   const policy = policyProfiles[value("policy")];
   const attendees = Math.max(100, numberValue("attendees"));
   const vip = Math.max(0, numberValue("vip"));
@@ -146,18 +392,30 @@ function calculate() {
 
   const airportDemand = Math.round(attendees * airportRatio);
   const foreignAirportDemand = Math.round(airportDemand * foreignRatio);
-  const publicCapacity = Math.round(
+  const baselinePublicCapacity = Math.round(
     airportDemand * venue.publicAbsorption * policy.publicBias * (foreignRatio > 0.4 ? 0.92 : 1)
+  );
+  const apiSignals = buildPublicDataSignals(venueKey);
+  const publicCapacity = Math.min(
+    airportDemand,
+    Math.round(baselinePublicCapacity * apiSignals.supplyModifier)
   );
   const baseShuttleDemand = Math.max(0, airportDemand - publicCapacity);
   const shuttleDemand = Math.round(baseShuttleDemand * policy.shuttleBias + vip * 1.15);
   const serviceSeatsPerBus = 45 * 0.88;
   const tripFactor = venue.roadMinutes > 80 ? 1.15 : venue.roadMinutes < 60 ? 0.82 : 1;
-  const busCount = Math.ceil((shuttleDemand / serviceSeatsPerBus) * tripFactor * 1.15);
-  const riskScore = Math.min(
+  const baselineShuttleDemand = Math.round(
+    Math.max(0, airportDemand - baselinePublicCapacity) * policy.shuttleBias + vip * 1.15
+  );
+  const baselineBusCount = Math.ceil((baselineShuttleDemand / serviceSeatsPerBus) * tripFactor * 1.15);
+  const busCount = Math.ceil(
+    (shuttleDemand / serviceSeatsPerBus) * tripFactor * (1 + apiSignals.reserveRatio)
+  );
+  const baselineRiskScore = Math.min(
     96,
     Math.round(34 + foreignRatio * 28 + airportRatio * 20 + vip / 12 + (venue.roadMinutes - 55) * 0.25)
   );
+  const riskScore = Math.min(99, baselineRiskScore + apiSignals.riskDelta);
   const hubCount = venue.hubs.length;
 
   return {
@@ -170,17 +428,22 @@ function calculate() {
     airportRatio,
     airportDemand,
     foreignAirportDemand,
+    baselinePublicCapacity,
     publicCapacity,
     shuttleDemand,
+    baselineBusCount,
     busCount,
+    baselineRiskScore,
     riskScore,
     hubCount,
+    apiSignals,
   };
 }
 
 function renderBars(model) {
-  const maxDemand = Math.max(...demandShape.map(([, ratio]) => model.airportDemand * ratio));
-  const bars = demandShape
+  const shape = model.apiSignals.demandShape;
+  const maxDemand = Math.max(...shape.map(([, ratio]) => model.airportDemand * ratio));
+  const bars = shape
     .map(([time, ratio]) => {
       const demand = Math.round(model.airportDemand * ratio);
       const width = Math.max(7, Math.round((demand / maxDemand) * 100));
@@ -199,11 +462,12 @@ function renderBars(model) {
 }
 
 function renderPlan(model) {
+  const reservePercent = Math.round(model.apiSignals.reserveRatio * 100);
   const items = [
     ["공항 직행", `${model.venue.hubs[0]} 중심으로 ${model.busCount}대 규모 셔틀 슬롯을 배정합니다.`],
     ["권역 환승", `${model.venue.hubs.join(", ")} 거점에 집결 안내와 순환 셔틀을 배치합니다.`],
     ["VIP 동선", `VIP ${formatter.format(model.vip)}명은 일반 참가자 승하차장과 분리해 예비차를 상시 대기시킵니다.`],
-    ["리스크 대응", `도로 돌발, 항공 지연, 우천 발생 시 예비차 15%와 안내 인력 증원을 적용합니다.`],
+    ["리스크 대응", `입국 집중도와 항공 지연 신호를 반영해 예비차 ${reservePercent}%와 안내 인력 증원을 적용합니다.`],
   ];
 
   document.getElementById("planList").innerHTML = items
@@ -216,21 +480,69 @@ function renderReport(model) {
   const foreignPercent = Math.round(model.foreignRatio * 100);
   const airportPercent = Math.round(model.airportRatio * 100);
   const riskLabel = model.riskScore >= 75 ? "높은" : model.riskScore >= 58 ? "중간 이상의" : "관리 가능한";
-  const snapshotNote = publicDataSnapshot
-    ? `<p>최근 공공 API 스냅샷은 <strong>${new Date(publicDataSnapshot.generatedAt).toLocaleString("ko-KR")}</strong>에 생성됐습니다. 현재 수집 결과는 분석 보조 신호로 사용하며, 키는 브라우저에 노출되지 않습니다.</p>`
+  const capacityChange = model.publicCapacity - model.baselinePublicCapacity;
+  const snapshotNote = model.apiSignals.active
+    ? `<p>공공 API 신뢰도는 <strong>${model.apiSignals.confidence}%</strong>입니다. API 신호로 대중교통 수용 추정치를 기준값 대비 <strong>${capacityChange >= 0 ? "+" : ""}${formatter.format(
+        capacityChange
+      )}명</strong>, 위험도를 <strong>+${model.apiSignals.riskDelta}점</strong> 조정했습니다. 스냅샷은 ${new Date(
+        publicDataSnapshot.generatedAt
+      ).toLocaleString("ko-KR")}에 생성됐습니다.</p>`
     : `<p>현재 화면은 데모 계산값을 사용합니다. GitHub Actions 수집기가 실행되면 공공 API 스냅샷을 읽어 보조 지표로 반영합니다.</p>`;
 
   document.getElementById("report").innerHTML = `
     <p><strong>${model.eventName}</strong>은 ${model.venue.label} 접근 행사로, 전체 참가자 ${formatter.format(
       model.attendees
     )}명 중 약 ${formatter.format(model.airportDemand)}명이 인천공항을 이용하는 시나리오입니다.</p>
-    <p>외국인 비율 ${foreignPercent}%, 공항 이용 비율 ${airportPercent}% 조건에서는 공항철도와 공항버스만으로 약 ${formatter.format(
+    <p>외국인 비율 ${foreignPercent}%, 공항 이용 비율 ${airportPercent}% 조건에서는 현재 공공교통망으로 약 ${formatter.format(
       model.publicCapacity
     )}명 수준을 흡수할 수 있으며, 약 ${formatter.format(publicGap)}명은 별도 수송 대책이 필요합니다.</p>
-    <p>권장안은 ${model.venue.hubs.join(", ")}를 기준으로 공항 직행 셔틀과 시내 순환 셔틀을 분리하는 방식입니다. 현재 조건에서는 ${formatter.format(
+    <p>권장안은 ${model.venue.hubs.join(", ")}를 환승 거점으로 삼아 공항 직행 셔틀과 시내 순환 셔틀을 분리하는 방식입니다. 현재 조건에서는 ${formatter.format(
       model.busCount
     )}대 규모의 셔틀 운영안이 필요하며, 리스크 수준은 ${riskLabel} 편입니다.</p>
     ${snapshotNote}
+  `;
+}
+
+function renderDecisionSignals(model) {
+  const container = document.getElementById("decisionSignals");
+  const confidence = document.getElementById("decisionConfidence");
+  const demandSource = document.getElementById("demandSource");
+  if (!container || !confidence || !demandSource) return;
+
+  if (!model.apiSignals.active) {
+    confidence.textContent = "baseline only";
+    demandSource.textContent = "scenario baseline";
+    container.innerHTML = `<div class="empty-state">스냅샷이 없어 행사 입력값과 고정 기준만 사용합니다.</div>`;
+    return;
+  }
+
+  confidence.textContent = `confidence ${model.apiSignals.confidence}%`;
+  demandSource.textContent = "ICN passenger forecast";
+  const capacityDelta = model.publicCapacity - model.baselinePublicCapacity;
+  const busDelta = model.busCount - model.baselineBusCount;
+  const signalRows = model.apiSignals.signals
+    .map(
+      (signal) => `
+        <div class="signal-row">
+          <div class="signal-copy">
+            <strong>${escapeHtml(signal.label)} · ${escapeHtml(signal.value)}</strong>
+            <small>${escapeHtml(signal.note)}</small>
+          </div>
+          <div class="signal-impact ${signal.tone === "negative" ? "negative" : signal.tone === "neutral" ? "neutral" : ""}">
+            ${escapeHtml(signal.impact)}
+          </div>
+        </div>
+      `
+    )
+    .join("");
+
+  container.innerHTML = `
+    <div class="decision-summary">
+      <div><span>대중교통 수용</span><strong>${capacityDelta >= 0 ? "+" : ""}${formatter.format(capacityDelta)}명</strong></div>
+      <div><span>위험도</span><strong>+${model.apiSignals.riskDelta}점</strong></div>
+      <div><span>필요 버스</span><strong>${busDelta >= 0 ? "+" : ""}${formatter.format(busDelta)}대</strong></div>
+    </div>
+    ${signalRows}
   `;
 }
 
@@ -331,17 +643,26 @@ function render() {
   setText("airportDemand", formatter.format(model.airportDemand));
   setText("publicCapacity", formatter.format(model.publicCapacity));
   setText("shuttleDemand", formatter.format(model.shuttleDemand));
-  setText("peakWindow", model.venue.peak);
+  setText("peakWindow", model.apiSignals.peakWindow || model.venue.peak);
   setText("riskScore", model.riskScore);
   setText("busCount", formatter.format(model.busCount));
   setText("hubCount", model.hubCount);
 
-  setText("peakCopy", `${model.venue.label} 접근과 공항 입국 처리 시간이 겹치는 구간`);
+  setText(
+    "peakCopy",
+    model.apiSignals.active
+      ? "인천공항 승객예고에서 가장 입국 수요가 집중된 시간대"
+      : `${model.venue.label} 접근과 공항 입국 처리 시간이 겹치는 구간`
+  );
   setText("riskCopy", model.riskScore >= 75 ? "항공 집중, 환승 복잡도, VIP 분리 필요도 높음" : "대중교통 보완 시 안정 운영 가능");
-  setText("busCopy", "45인승, 탑승률 88%, 예비차 15% 기준");
+  setText(
+    "busCopy",
+    `45인승, 탑승률 88%, 예비차 ${Math.round(model.apiSignals.reserveRatio * 100)}% 기준`
+  );
   setText("hubCopy", `${model.venue.hubs.join(", ")} 권역 운영`);
 
   renderBars(model);
+  renderDecisionSignals(model);
   renderPlan(model);
   renderReport(model);
 }

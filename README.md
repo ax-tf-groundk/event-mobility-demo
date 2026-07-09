@@ -22,6 +22,17 @@ This repo includes a GitHub Actions collector:
 
 Set the repository secret `PUBLIC_DATA_SERVICE_KEY`, then run **Collect public mobility data** from GitHub Actions. The frontend should read only the generated JSON snapshot, never the API key.
 
+## Decision engine
+
+The demo converts the sanitized API snapshot into explainable decision signals:
+
+- ICN passenger forecast changes the hourly demand curve and peak window.
+- Flight delays, airport congestion, and venue-area station pressure increase risk and reserve buses.
+- Airport railroad punctuality and airport bus route coverage adjust estimated public-transport absorption.
+- Every adjustment is freshness-weighted and accompanied by a confidence score that discounts partial API pages.
+
+The original scenario calculation remains visible as a baseline. The **API 의사결정 영향** panel shows the difference between that baseline and the API-adjusted recommendation.
+
 To set the secret manually:
 
 1. Open `Settings` in the GitHub repository.

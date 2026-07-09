@@ -143,9 +143,19 @@
           <article class="panel">
             <div class="panel-header">
               <h2>시간대별 수요</h2>
-              <span>ICN arrivals</span>
+              <span id="demandSource">scenario baseline</span>
             </div>
             <div id="demandBars" class="bars"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <h2>API 의사결정 영향</h2>
+              <span id="decisionConfidence">baseline only</span>
+            </div>
+            <div id="decisionSignals" class="decision-signals">
+              <div class="empty-state">공공 API 스냅샷을 분석하는 중입니다.</div>
+            </div>
           </article>
 
           <article class="panel">
