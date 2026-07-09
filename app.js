@@ -46,6 +46,52 @@ const demandShape = [
   ["21:00", 0.1],
 ];
 
+const countryProfiles = {
+  us: {
+    label: "미국",
+    color: "#18a77a",
+    airports: ["ATL", "BOS", "DFW", "HNL", "IAD", "JFK", "LAX", "ORD", "SEA", "SFO"],
+    fallback: [0.04, 0.03, 0.05, 0.09, 0.18, 0.27, 0.23, 0.11],
+  },
+  jp: {
+    label: "일본",
+    color: "#2877a8",
+    airports: ["CTS", "FUK", "HIJ", "HND", "KIX", "KMQ", "KMJ", "MYJ", "NGO", "NRT", "OKA"],
+    fallback: [0.02, 0.04, 0.14, 0.19, 0.21, 0.18, 0.16, 0.06],
+  },
+  cn: {
+    label: "중국",
+    color: "#ef6c5b",
+    airports: ["CAN", "CKG", "DLC", "HGH", "NKG", "PEK", "PVG", "SHE", "TAO", "TFU", "TNA", "TSN", "WEH", "XMN", "YNT"],
+    fallback: [0.03, 0.05, 0.1, 0.18, 0.2, 0.2, 0.17, 0.07],
+  },
+  sea: {
+    label: "동남아",
+    color: "#d6a23c",
+    airports: ["BKK", "CEB", "CGK", "CXR", "DAD", "HAN", "HKT", "KUL", "MNL", "SGN", "SIN"],
+    fallback: [0.16, 0.1, 0.08, 0.1, 0.13, 0.18, 0.17, 0.08],
+  },
+  eu: {
+    label: "유럽",
+    color: "#8b78c6",
+    airports: ["AMS", "BCN", "CDG", "FCO", "FRA", "HEL", "IST", "LHR", "MAD", "MUC", "MXP", "PRG", "VIE", "WAW", "ZRH"],
+    fallback: [0.12, 0.08, 0.07, 0.09, 0.14, 0.22, 0.19, 0.09],
+  },
+  other: {
+    label: "기타",
+    color: "#89928d",
+    airports: [],
+    fallback: [0.09, 0.07, 0.09, 0.13, 0.17, 0.19, 0.17, 0.09],
+  },
+};
+
+const specialFactorProfiles = {
+  normal: { label: "일반 운영일", factor: 1, uncertainty: 0.03 },
+  rain: { label: "강수·악천후", factor: 1.08, uncertainty: 0.08 },
+  nearby: { label: "인근 대형행사", factor: 1.18, uncertainty: 0.11 },
+  restriction: { label: "도로 통제·VIP 이동", factor: 1.25, uncertainty: 0.14 },
+};
+
 const formatter = new Intl.NumberFormat("ko-KR");
 let publicDataSnapshot = null;
 
@@ -154,6 +200,144 @@ function resultSampleRatio(datasetId, operationId) {
   const total = numeric(result?.summary?.totalCount);
   const items = numeric(result?.summary?.itemCount) || payloadItems(result || {}).length;
   return total > 0 ? clamp(items / total, 0, 1) : items > 0 ? 1 : 0;
+}
+
+function readCountryMix() {
+  const raw = {};
+  let total = 0;
+  document.querySelectorAll(".country-share").forEach((input) => {
+    const amount = Math.max(0, numeric(input.value));
+    raw[input.dataset.country] = amount;
+    total += amount;
+  });
+
+  const divisor = total || 1;
+  return {
+    total,
+    shares: Object.fromEntries(Object.keys(countryProfiles).map((key) => [key, (raw[key] || 0) / divisor])),
+  };
+}
+
+function flightRunsOnDate(flight, dateText) {
+  const date = new Date(`${dateText}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return true;
+  const fields = ["ynSun", "ynMon", "ynTue", "ynWed", "ynThu", "ynFri", "ynSat"];
+  const value = String(flight[fields[date.getDay()]] || "").toUpperCase();
+  return !value || value === "Y" || value === "1";
+}
+
+function flightHour(value) {
+  const digits = String(value || "").replace(/\D/g, "").padStart(4, "0");
+  const hour = Number(digits.slice(-4, -2));
+  const minute = Number(digits.slice(-2));
+  return Number.isFinite(hour) && Number.isFinite(minute) ? hour + minute / 60 : null;
+}
+
+function buildArrivalWave(model) {
+  const immigrationLagHours = 1.25;
+  const flights = resultItems("airport_scheduled_flights", "get_scheduled_arrivals").filter(
+    (flight) =>
+      String(flight.codeshare || "").toLowerCase() !== "slave" &&
+      flightRunsOnDate(flight, model.arrivalDate)
+  );
+  const bins = Array.from({ length: 8 }, (_, index) => ({
+    label: `${String(index * 3).padStart(2, "0")}-${String((index + 1) * 3).padStart(2, "0")}`,
+    countries: {},
+    total: 0,
+  }));
+
+  let matchedFlights = 0;
+  let weightedCoverage = 0;
+  const countryStats = [];
+
+  for (const [key, profile] of Object.entries(countryProfiles)) {
+    const share = model.countryMix.shares[key] || 0;
+    const countryDemand = Math.round(model.foreignAirportDemand * share);
+    const matched = flights.filter((flight) => profile.airports.includes(String(flight.airportCode || "").toUpperCase()));
+    const weights = Array(8).fill(0);
+
+    if (matched.length > 0) {
+      matchedFlights += matched.length;
+      weightedCoverage += share;
+      for (const flight of matched) {
+        const hour = flightHour(flight.st);
+        if (hour === null) continue;
+        const exitBin = Math.min(7, Math.floor(((hour + immigrationLagHours) % 24) / 3));
+        weights[exitBin] += 0.65;
+        weights[(exitBin + 7) % 8] += 0.12;
+        weights[(exitBin + 1) % 8] += 0.23;
+      }
+    } else {
+      profile.fallback.forEach((weight, index) => {
+        weights[index] = weight;
+      });
+    }
+
+    const weightTotal = weights.reduce((sum, weight) => sum + weight, 0) || 1;
+    weights.forEach((weight, index) => {
+      const amount = Math.round((countryDemand * weight) / weightTotal);
+      bins[index].countries[key] = amount;
+      bins[index].total += amount;
+    });
+    countryStats.push({ key, share, demand: countryDemand, flights: matched.length });
+  }
+
+  const peak = bins.reduce((current, bin) => (bin.total > current.total ? bin : current), bins[0]);
+  return {
+    bins,
+    peak,
+    matchedFlights,
+    routeCoverage: Math.round(weightedCoverage * 100),
+    immigrationLagMinutes: Math.round(immigrationLagHours * 60),
+    countryStats,
+  };
+}
+
+function buildFutureForecast(model) {
+  const date = new Date(`${model.eventDate}T12:00:00`);
+  const dayFactors = [0.82, 1.08, 1.02, 1, 1.04, 1.14, 0.9];
+  const monthFactors = [0.93, 0.94, 0.98, 1, 1.02, 1.04, 1.08, 1.05, 1.03, 1.06, 1.02, 0.96];
+  const validDate = !Number.isNaN(date.getTime());
+  const dayFactor = validDate ? dayFactors[date.getDay()] : 1;
+  const monthFactor = validDate ? monthFactors[date.getMonth()] : 1;
+  const special = specialFactorProfiles[model.specialFactor] || specialFactorProfiles.normal;
+  const startHour = numeric(String(model.eventStart || "10:00").split(":")[0]);
+  const baselineShape = [0.58, 0.7, 1.02, 0.86, 0.88, 1.08, 0.96, 0.68];
+  const eventIntensity = clamp((model.attendees / 10000) * 34 + (model.vip / 200) * 8, 8, 58);
+  const venueFactor = clamp(model.venue.roadMinutes / 75, 0.78, 1.2);
+
+  const bins = baselineShape.map((shape, index) => {
+    const midpoint = index * 3 + 1.5;
+    const arrivalPulse = Math.exp(-Math.pow(midpoint - (startHour - 1.5), 2) / 7);
+    const departurePulse = 0.72 * Math.exp(-Math.pow(midpoint - (startHour + 7.5), 2) / 9);
+    const baseline = Math.round(shape * 100 * dayFactor * monthFactor * venueFactor);
+    const p50 = Math.round(baseline * special.factor + eventIntensity * (arrivalPulse + departurePulse));
+    const p90 = Math.round(
+      p50 * (1.1 + special.uncertainty) + model.apiSignals.riskDelta * 0.7
+    );
+    return {
+      label: `${String(index * 3).padStart(2, "0")}-${String((index + 1) * 3).padStart(2, "0")}`,
+      baseline,
+      p50,
+      p90,
+    };
+  });
+
+  const peak = bins.reduce((current, bin) => (bin.p90 > current.p90 ? bin : current), bins[0]);
+  const maxIndex = Math.max(...bins.map((bin) => bin.p90));
+  const extraMinutes = Math.max(0, Math.round((maxIndex - 100) * 0.32));
+  const confidence = Math.round(48 + model.apiSignals.confidence * 0.28);
+
+  return {
+    bins,
+    peak,
+    maxIndex,
+    extraMinutes,
+    confidence,
+    special,
+    dayFactor,
+    monthFactor,
+  };
 }
 
 function buildPublicDataSignals(venueKey) {
@@ -401,6 +585,11 @@ function calculate() {
   const vip = Math.max(0, numberValue("vip"));
   const foreignRatio = numberValue("foreignRatio") / 100;
   const airportRatio = numberValue("airportRatio") / 100;
+  const eventDate = value("eventDate");
+  const eventStart = value("eventStart");
+  const arrivalDate = value("arrivalDate");
+  const specialFactor = value("specialFactor");
+  const countryMix = readCountryMix();
 
   const airportDemand = Math.round(attendees * airportRatio);
   const foreignAirportDemand = Math.round(airportDemand * foreignRatio);
@@ -430,7 +619,7 @@ function calculate() {
   const riskScore = Math.min(99, baselineRiskScore + apiSignals.riskDelta);
   const hubCount = venue.hubs.length;
 
-  return {
+  const model = {
     eventName,
     venue,
     policy,
@@ -449,7 +638,15 @@ function calculate() {
     riskScore,
     hubCount,
     apiSignals,
+    eventDate,
+    eventStart,
+    arrivalDate,
+    specialFactor,
+    countryMix,
   };
+  model.arrivalWave = buildArrivalWave(model);
+  model.futureForecast = buildFutureForecast(model);
+  return model;
 }
 
 function renderBars(model) {
@@ -459,7 +656,7 @@ function renderBars(model) {
     .map(([time, ratio]) => {
       const demand = Math.round(model.airportDemand * ratio);
       const width = Math.max(7, Math.round((demand / maxDemand) * 100));
-      const color = demand > maxDemand * 0.8 ? "var(--red)" : demand > maxDemand * 0.6 ? "var(--amber)" : "var(--blue)";
+      const color = demand > maxDemand * 0.8 ? "var(--coral)" : demand > maxDemand * 0.6 ? "var(--amber)" : "var(--blue)";
       return `
         <div class="bar-row">
           <strong>${time}</strong>
@@ -476,6 +673,7 @@ function renderBars(model) {
 function renderPlan(model) {
   const reservePercent = Math.round(model.apiSignals.reserveRatio * 100);
   const items = [
+    ["입국 파동", `${model.arrivalWave.peak.label}에 외국인 입국 완료 수요가 집중되므로 공항 집결 인력을 선배치합니다.`],
     ["공항 직행", `${model.venue.hubs[0]} 중심으로 ${model.busCount}대 규모 셔틀 슬롯을 배정합니다.`],
     ["권역 환승", `${model.venue.hubs.join(", ")} 거점에 집결 안내와 순환 셔틀을 배치합니다.`],
     ["VIP 동선", `VIP ${formatter.format(model.vip)}명은 일반 참가자 승하차장과 분리해 예비차를 상시 대기시킵니다.`],
@@ -511,6 +709,7 @@ function renderReport(model) {
     <p>권장안은 ${model.venue.hubs.join(", ")}를 환승 거점으로 삼아 공항 직행 셔틀과 시내 순환 셔틀을 분리하는 방식입니다. 현재 조건에서는 ${formatter.format(
       model.busCount
     )}대 규모의 셔틀 운영안이 필요하며, 리스크 수준은 ${riskLabel} 편입니다.</p>
+    <p>국가별 정기 도착편을 참가자 구성과 결합하면 <strong>${model.arrivalWave.peak.label}</strong>에 입국 완료 수요가 가장 집중됩니다. 행사일 교통은 P90 기준 <strong>${model.futureForecast.peak.label}</strong>이 최대 혼잡 구간이며, 평시보다 최대 <strong>${model.futureForecast.extraMinutes}분</strong>의 추가 이동시간을 예상합니다.</p>
     ${snapshotNote}
   `;
 }
@@ -590,6 +789,128 @@ function renderDecisionSignals(model) {
       </div>
     </div>
     <div class="signal-matrix">${signalRows}</div>
+  `;
+}
+
+function renderArrivalWave(model) {
+  const container = document.getElementById("arrivalWave");
+  const source = document.getElementById("waveSource");
+  if (!container || !source) return;
+
+  const wave = model.arrivalWave;
+  const maxTotal = Math.max(1, ...wave.bins.map((bin) => bin.total));
+  source.textContent = `${model.arrivalDate} / ICN scheduled arrivals`;
+
+  const legend = wave.countryStats
+    .filter((country) => country.share > 0)
+    .map((country) => {
+      const profile = countryProfiles[country.key];
+      return `<span><i style="--legend-color:${profile.color}"></i>${profile.label} ${Math.round(
+        country.share * 100
+      )}%</span>`;
+    })
+    .join("");
+
+  const columns = wave.bins
+    .map((bin) => {
+      const segments = Object.entries(bin.countries)
+        .filter(([, amount]) => amount > 0)
+        .map(([key, amount]) => {
+          const share = (amount / Math.max(1, bin.total)) * 100;
+          return `<i class="wave-segment" title="${escapeHtml(countryProfiles[key].label)} ${formatter.format(
+            amount
+          )}명" style="--segment-share:${share};--segment-color:${countryProfiles[key].color}"></i>`;
+        })
+        .join("");
+      return `
+        <div class="wave-column">
+          <div class="wave-stack" style="--stack-height:${Math.round((bin.total / maxTotal) * 100)}">${segments}</div>
+          <label><strong>${formatter.format(bin.total)}</strong>${bin.label}</label>
+        </div>
+      `;
+    })
+    .join("");
+
+  container.innerHTML = `
+    <div class="wave-layout">
+      <div class="wave-summary">
+        <div class="wave-summary-item">
+          <span>Peak Exit Window</span>
+          <strong>${escapeHtml(wave.peak.label)}</strong>
+          <small>입국 완료 예상 ${formatter.format(wave.peak.total)}명</small>
+        </div>
+        <div class="wave-summary-item">
+          <span>Matched Flights</span>
+          <strong>${formatter.format(wave.matchedFlights)}편</strong>
+          <small>국가별 IATA 출발공항 매칭</small>
+        </div>
+        <div class="wave-summary-item">
+          <span>Processing Lag</span>
+          <strong>+${wave.immigrationLagMinutes}분</strong>
+          <small>입국심사·수하물 수취 가정</small>
+        </div>
+      </div>
+      <div class="wave-chart-wrap">
+        <div class="country-legend">${legend}</div>
+        <div class="wave-chart">${columns}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFutureForecast(model) {
+  const container = document.getElementById("futureForecast");
+  const confidence = document.getElementById("forecastConfidence");
+  if (!container || !confidence) return;
+
+  const forecast = model.futureForecast;
+  const maxValue = Math.max(1, ...forecast.bins.map((bin) => bin.p90));
+  confidence.textContent = `baseline proxy / confidence ${forecast.confidence}%`;
+  const rows = forecast.bins
+    .map((bin) => {
+      const baselineWidth = Math.round((bin.baseline / maxValue) * 100);
+      const p50Width = Math.round((bin.p50 / maxValue) * 100);
+      const p90Width = Math.round((bin.p90 / maxValue) * 100);
+      return `
+        <div class="forecast-row">
+          <strong>${bin.label}</strong>
+          <div class="forecast-track" style="--baseline:${baselineWidth};--p50:${p50Width};--p90:${p90Width}">
+            <i class="forecast-bar p90"></i>
+            <i class="forecast-bar p50"></i>
+            <i class="forecast-bar baseline"></i>
+          </div>
+          <span>${bin.p50} / ${bin.p90}</span>
+        </div>
+      `;
+    })
+    .join("");
+
+  container.innerHTML = `
+    <div class="forecast-overview">
+      <div class="forecast-kpi">
+        <span>P90 Peak Window</span>
+        <strong>${escapeHtml(forecast.peak.label)}</strong>
+        <small>혼잡지수 ${forecast.peak.p90}</small>
+      </div>
+      <div class="forecast-kpi">
+        <span>Expected Delay</span>
+        <strong>+${forecast.extraMinutes}분</strong>
+        <small>평시 대비 최대 추가 이동시간</small>
+      </div>
+      <div class="forecast-kpi">
+        <span>Scenario Factor</span>
+        <strong>${escapeHtml(forecast.special.label)}</strong>
+        <small>요일 ${forecast.dayFactor.toFixed(2)} · 계절 ${forecast.monthFactor.toFixed(2)}</small>
+      </div>
+    </div>
+    <div class="forecast-chart-wrap">
+      <div class="forecast-legend">
+        <span><i style="--legend-color:#313936"></i>평시 기준선</span>
+        <span><i style="--legend-color:var(--coral)"></i>P50 예상</span>
+        <span><i style="--legend-color:#f6c3bb"></i>P90 상위 혼잡</span>
+      </div>
+      <div class="forecast-chart">${rows}</div>
+    </div>
   `;
 }
 
@@ -690,6 +1011,7 @@ function render() {
 
   const model = calculate();
 
+  setText("countryShareTotal", `${Math.round(model.countryMix.total)}%`);
   setText("title", model.eventName);
   setText("mapVenue", model.venue.label);
   setText("airportDemand", formatter.format(model.airportDemand));
@@ -715,6 +1037,8 @@ function render() {
 
   renderBars(model);
   renderDecisionSignals(model);
+  renderArrivalWave(model);
+  renderFutureForecast(model);
   renderPlan(model);
   renderReport(model);
 }

@@ -33,6 +33,14 @@ The demo converts the sanitized API snapshot into explainable decision signals:
 
 The original scenario calculation remains visible as a baseline. The **API 의사결정 영향** panel shows the difference between that baseline and the API-adjusted recommendation.
 
+### Arrival wave forecast
+
+The country-mix inputs are normalized to 100% and mapped to IATA origin airports. Seasonal ICN arrival schedules are filtered by weekday, code-share duplicates are removed, and a 75-minute immigration/baggage lag is applied before producing the expected airport-exit wave. Flight counts are used as weights because the public schedule API does not expose booked passenger counts.
+
+### Event-day forecast
+
+The P50/P90 forecast combines a weekday and monthly baseline proxy with venue travel characteristics, event attendance, VIP demand, current API risk signals, and the selected special factor. It is an explainable scenario forecast, not a trained historical traffic model yet. Accuracy will improve as the collector accumulates historical road-speed, traffic-volume, weather, and event observations.
+
 To set the secret manually:
 
 1. Open `Settings` in the GitHub repository.

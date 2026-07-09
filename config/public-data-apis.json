@@ -244,8 +244,10 @@
           "defaultParams": {
             "type": "json",
             "pageNo": "1",
-            "numOfRows": "100"
-          }
+            "numOfRows": "1000"
+          },
+          "paginate": true,
+          "maxPages": 4
         }
       ]
     },

@@ -115,6 +115,23 @@ function summarizePayload(parsed) {
   };
 }
 
+function payloadItems(parsed) {
+  if (parsed.format !== "json" || parsed.data == null) return [];
+  const body = parsed.data.response?.body || parsed.data.body || {};
+  const items = body.items?.item || body.items || [];
+  return Array.isArray(items) ? items : items ? [items] : [];
+}
+
+function replacePayloadItems(parsed, items) {
+  const body = parsed.data.response?.body || parsed.data.body;
+  if (!body) return;
+  if (body.items && !Array.isArray(body.items) && Object.prototype.hasOwnProperty.call(body.items, "item")) {
+    body.items.item = items;
+  } else {
+    body.items = items;
+  }
+}
+
 async function collectOperation(dataset, operation) {
   const { params, missing } = buildParams(operation);
 
@@ -137,6 +154,30 @@ async function collectOperation(dataset, operation) {
       },
     });
     const parsed = await parseResponse(response);
+    const firstSummary = summarizePayload(parsed);
+
+    if (response.ok && operation.paginate && parsed.format === "json") {
+      const pageSize = Math.max(1, Number(params.numOfRows) || firstSummary.itemCount || 100);
+      const totalPages = Math.min(
+        Number(operation.maxPages) || 1,
+        Math.ceil((Number(firstSummary.totalCount) || firstSummary.itemCount || 0) / pageSize)
+      );
+      const combinedItems = payloadItems(parsed);
+
+      for (let pageNo = 2; pageNo <= totalPages; pageNo += 1) {
+        const pageUrl = buildUrl(dataset.baseUrl, operation.path, { ...params, pageNo: String(pageNo) });
+        const pageResponse = await fetch(pageUrl, {
+          headers: {
+            accept: "application/json, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5",
+          },
+        });
+        if (!pageResponse.ok) break;
+        const pageParsed = await parseResponse(pageResponse);
+        combinedItems.push(...payloadItems(pageParsed));
+      }
+
+      replacePayloadItems(parsed, combinedItems);
+    }
 
     return {
       datasetId: dataset.id,

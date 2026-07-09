@@ -41,6 +41,22 @@
 
           <div class="field-grid">
             <label>
+              행사일
+              <input id="eventDate" type="date" value="2026-10-15" />
+            </label>
+            <label>
+              시작시간
+              <input id="eventStart" type="time" value="10:00" />
+            </label>
+          </div>
+
+          <label>
+            대표 입국일
+            <input id="arrivalDate" type="date" value="2026-10-14" />
+          </label>
+
+          <div class="field-grid">
+            <label>
               참가자
               <input id="attendees" type="number" min="100" step="100" value="8000" />
             </label>
@@ -56,6 +72,21 @@
             <span class="range-value"><span id="foreignRatioValue">45</span>%</span>
           </label>
 
+          <div class="country-control">
+            <div class="control-heading">
+              <span>외국인 국가 구성</span>
+              <strong id="countryShareTotal">100%</strong>
+            </div>
+            <div class="country-inputs">
+              <label><span>미국</span><input class="country-share" data-country="us" type="number" min="0" max="100" value="25" /></label>
+              <label><span>일본</span><input class="country-share" data-country="jp" type="number" min="0" max="100" value="20" /></label>
+              <label><span>중국</span><input class="country-share" data-country="cn" type="number" min="0" max="100" value="20" /></label>
+              <label><span>동남아</span><input class="country-share" data-country="sea" type="number" min="0" max="100" value="15" /></label>
+              <label><span>유럽</span><input class="country-share" data-country="eu" type="number" min="0" max="100" value="10" /></label>
+              <label><span>기타</span><input class="country-share" data-country="other" type="number" min="0" max="100" value="10" /></label>
+            </div>
+          </div>
+
           <label>
             인천공항 이용 비율
             <input id="airportRatio" type="range" min="0" max="100" value="60" />
@@ -69,6 +100,16 @@
               <option value="shuttle">셔틀 보강</option>
               <option value="public">대중교통 우선</option>
               <option value="vip">VIP 분리 우선</option>
+            </select>
+          </label>
+
+          <label>
+            행사일 특수요인
+            <select id="specialFactor">
+              <option value="normal">일반 운영일</option>
+              <option value="rain">강수·악천후</option>
+              <option value="nearby">인근 대형행사 동시 개최</option>
+              <option value="restriction">도로 통제·VIP 이동</option>
             </select>
           </label>
 
@@ -170,10 +211,36 @@
             </div>
           </article>
 
+          <article class="wave-panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-index">02 / ARRIVAL WAVE</p>
+                <h2>국가별 입국 Wave Forecast</h2>
+              </div>
+              <span id="waveSource">scheduled arrivals + country mix</span>
+            </div>
+            <div id="arrivalWave" class="arrival-wave">
+              <div class="empty-state">국가별 항공편 도착 파동을 계산하는 중입니다.</div>
+            </div>
+          </article>
+
+          <article class="forecast-panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-index">03 / EVENT-DAY FORECAST</p>
+                <h2>행사일 교통 예측</h2>
+              </div>
+              <span id="forecastConfidence">baseline proxy</span>
+            </div>
+            <div id="futureForecast" class="future-forecast">
+              <div class="empty-state">행사일 P50·P90 시나리오를 계산하는 중입니다.</div>
+            </div>
+          </article>
+
           <article class="panel">
             <div class="panel-header">
               <div>
-                <p class="section-index">02 / DEMAND CURVE</p>
+                <p class="section-index">04 / DEMAND CURVE</p>
                 <h2>시간대별 공항 도착 수요</h2>
               </div>
               <span id="demandSource">scenario baseline</span>
@@ -184,7 +251,7 @@
           <article class="panel report-panel">
             <div class="panel-header">
               <div>
-                <p class="section-index">03 / CONSULTING OUTPUT</p>
+                <p class="section-index">05 / CONSULTING OUTPUT</p>
                 <h2>AI 교통대책 초안</h2>
               </div>
               <span>consulting output</span>
@@ -195,7 +262,7 @@
           <article class="panel">
             <div class="panel-header">
               <div>
-                <p class="section-index">04 / OPERATIONS</p>
+                <p class="section-index">06 / OPERATIONS</p>
                 <h2>권장 운영안</h2>
               </div>
               <span>draft timetable</span>
