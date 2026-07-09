@@ -301,6 +301,8 @@ function buildPublicDataSignals(venueKey) {
       note: `승객예고 ${hourlyArrivals.length}개 시간대, 일 합계 ${formatter.format(Math.round(totalForecastArrivals))}명`,
       impact: `위험도 +${Math.round(arrivalPressure * 7 * freshnessWeight)}`,
       tone: arrivalPressure > 0.45 ? "negative" : "neutral",
+      strength: Math.round(arrivalPressure * 100),
+      category: "DEMAND PRESSURE",
     },
     {
       label: "항공 도착 지연",
@@ -308,6 +310,8 @@ function buildPublicDataSignals(venueKey) {
       note: `마스터편 표본 ${flightDelays.length}편, 평균 ${averageDelay.toFixed(1)}분`,
       impact: `위험도 +${Math.round(delayRatio * 8 * freshnessWeight)}`,
       tone: delayRatio > 0.25 ? "negative" : "neutral",
+      strength: Math.round(clamp(delayRatio / 0.5, 0, 1) * 100),
+      category: "FLIGHT RELIABILITY",
     },
     {
       label: "공항철도 정시성",
@@ -315,6 +319,8 @@ function buildPublicDataSignals(venueKey) {
       note: `도착실적이 있는 운행 표본 ${railDelays.length}건`,
       impact: railOnTimeRatio >= 0.85 ? "수용력 상향" : "수용력 하향",
       tone: railOnTimeRatio >= 0.85 ? "positive" : "negative",
+      strength: Math.round(railOnTimeRatio * 100),
+      category: "RAIL SUPPLY",
     },
     {
       label: "공항버스 공급망",
@@ -322,6 +328,8 @@ function buildPublicDataSignals(venueKey) {
       note: "공개 API의 전체 노선 수 기준",
       impact: airportBusRoutes >= 25 ? "수용력 상향" : "수용력 하향",
       tone: airportBusRoutes >= 25 ? "positive" : "negative",
+      strength: Math.round(clamp(airportBusRoutes / 50, 0, 1) * 100),
+      category: "BUS COVERAGE",
     },
     {
       label: "T1 주차면 상태",
@@ -329,6 +337,8 @@ function buildPublicDataSignals(venueKey) {
       note: `주차면 표본 ${parking.length}건의 상태 코드 비율`,
       impact: `위험도 +${Math.round(parkingActiveRatio * 2 * freshnessWeight)}`,
       tone: parkingActiveRatio > 0.8 ? "negative" : "neutral",
+      strength: Math.round(parkingActiveRatio * 100),
+      category: "CURBSIDE PRESSURE",
     },
   ];
 
@@ -339,6 +349,8 @@ function buildPublicDataSignals(venueKey) {
       note: `삼성역 수집 표본 ${stationRows.length}건의 시간대 상대 혼잡`,
       impact: `위험도 +${Math.round(stationPressure * 5 * freshnessWeight)}`,
       tone: stationPressure > 0.4 ? "negative" : "neutral",
+      strength: Math.round(stationPressure * 100),
+      category: "VENUE CONGESTION",
     });
   }
 
@@ -520,29 +532,64 @@ function renderDecisionSignals(model) {
   demandSource.textContent = "ICN passenger forecast";
   const capacityDelta = model.publicCapacity - model.baselinePublicCapacity;
   const busDelta = model.busCount - model.baselineBusCount;
+  const capacityWidth = clamp(
+    Math.round((Math.abs(capacityDelta) / Math.max(1, model.baselinePublicCapacity)) * 1000),
+    6,
+    100
+  );
+  const riskWidth = clamp(Math.round((model.apiSignals.riskDelta / 15) * 100), 6, 100);
+  const busWidth = clamp(Math.round((Math.abs(busDelta) / 8) * 100), 6, 100);
+  const samplePercent = Math.round(model.apiSignals.sampleCoverage * 100);
   const signalRows = model.apiSignals.signals
-    .map(
-      (signal) => `
+    .map((signal) => {
+      const signalColor =
+        signal.tone === "negative" ? "var(--coral)" : signal.tone === "neutral" ? "var(--amber)" : "var(--green)";
+      return `
         <div class="signal-row">
           <div class="signal-copy">
+            <span>${escapeHtml(signal.category || "PUBLIC DATA SIGNAL")}</span>
             <strong>${escapeHtml(signal.label)} · ${escapeHtml(signal.value)}</strong>
             <small>${escapeHtml(signal.note)}</small>
           </div>
-          <div class="signal-impact ${signal.tone === "negative" ? "negative" : signal.tone === "neutral" ? "neutral" : ""}">
-            ${escapeHtml(signal.impact)}
+          <div class="signal-viz" style="--signal-color:${signalColor}">
+            <div><span>SIGNAL</span><strong>${escapeHtml(signal.impact)}</strong></div>
+            <div class="signal-track"><i style="width:${clamp(signal.strength || 0, 4, 100)}%"></i></div>
           </div>
         </div>
-      `
-    )
+      `;
+    })
     .join("");
 
   container.innerHTML = `
-    <div class="decision-summary">
-      <div><span>대중교통 수용</span><strong>${capacityDelta >= 0 ? "+" : ""}${formatter.format(capacityDelta)}명</strong></div>
-      <div><span>위험도</span><strong>+${model.apiSignals.riskDelta}점</strong></div>
-      <div><span>필요 버스</span><strong>${busDelta >= 0 ? "+" : ""}${formatter.format(busDelta)}대</strong></div>
+    <div class="decision-overview">
+      <div class="confidence-module">
+        <div class="radial-gauge" style="--value:${model.apiSignals.confidence}">
+          <div><strong>${model.apiSignals.confidence}</strong><span>MODEL CONFIDENCE</span></div>
+        </div>
+        <p class="confidence-note">표본 커버리지 ${samplePercent}% · 최신성 ${model.apiSignals.freshness}%</p>
+      </div>
+      <div class="impact-metrics">
+        <div class="impact-metric" style="--signal-color:var(--green)">
+          <span>대중교통 수용 변화</span>
+          <strong>${capacityDelta >= 0 ? "+" : ""}${formatter.format(capacityDelta)}명</strong>
+          <div class="impact-track"><i style="width:${capacityWidth}%"></i></div>
+          <small>SCENARIO BASELINE 대비</small>
+        </div>
+        <div class="impact-metric" style="--signal-color:var(--coral)">
+          <span>운영 위험도 변화</span>
+          <strong>+${model.apiSignals.riskDelta}점</strong>
+          <div class="impact-track"><i style="width:${riskWidth}%"></i></div>
+          <small>DEMAND + DISRUPTION 신호</small>
+        </div>
+        <div class="impact-metric" style="--signal-color:var(--amber)">
+          <span>필요 차량 변화</span>
+          <strong>${busDelta >= 0 ? "+" : ""}${formatter.format(busDelta)}대</strong>
+          <div class="impact-track"><i style="width:${busWidth}%"></i></div>
+          <small>예비차 포함 권고안</small>
+        </div>
+      </div>
     </div>
-    ${signalRows}
+    <div class="signal-matrix">${signalRows}</div>
   `;
 }
 
@@ -550,11 +597,13 @@ function renderSnapshotStatus() {
   const status = document.getElementById("snapshotStatus");
   const summary = document.getElementById("collectorSummary");
 
-  if (!status || !summary) return;
+  if (!status) return;
 
   if (!publicDataSnapshot) {
     status.innerHTML = `<i class="warn"></i> Snapshot pending`;
-    summary.textContent = "GitHub Actions 수집기를 실행하면 최신 공공 API 스냅샷이 표시됩니다.";
+    if (summary) {
+      summary.textContent = "GitHub Actions 수집기를 실행하면 최신 공공 API 스냅샷이 표시됩니다.";
+    }
     renderPublicDataDetails();
     return;
   }
@@ -568,9 +617,11 @@ function renderSnapshotStatus() {
   const failed = (counts.http_error || 0) + (counts.fetch_error || 0);
 
   status.innerHTML = `<i class="${failed > 0 ? "warn" : "ok"}"></i> Snapshot ${ok} ok`;
-  summary.textContent = `최근 수집: ${new Date(publicDataSnapshot.generatedAt).toLocaleString(
-    "ko-KR"
-  )} / 성공 ${ok}, 건너뜀 ${skipped}, 실패 ${failed}`;
+  if (summary) {
+    summary.textContent = `최근 수집: ${new Date(publicDataSnapshot.generatedAt).toLocaleString(
+      "ko-KR"
+    )} / 성공 ${ok}, 건너뜀 ${skipped}, 실패 ${failed}`;
+  }
   renderPublicDataDetails();
 }
 
@@ -640,6 +691,7 @@ function render() {
   const model = calculate();
 
   setText("title", model.eventName);
+  setText("mapVenue", model.venue.label);
   setText("airportDemand", formatter.format(model.airportDemand));
   setText("publicCapacity", formatter.format(model.publicCapacity));
   setText("shuttleDemand", formatter.format(model.shuttleDemand));

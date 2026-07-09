@@ -3,17 +3,23 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>T-RiseUp Event Mobility Control</title>
+    <title>Mobility Total Analytics | GroundK</title>
+    <link
+      rel="stylesheet"
+      as="style"
+      crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"
+    />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main class="shell">
       <aside class="sidebar">
         <div class="brand">
-          <div class="brand-mark">T</div>
+          <div class="brand-mark">M</div>
           <div>
-            <strong>T-RiseUp</strong>
-            <span>Event Mobility Control</span>
+            <strong>Mobility Total Analytics</strong>
+            <span>T-RiseUp Intelligence</span>
           </div>
         </div>
 
@@ -73,8 +79,9 @@
       <section class="workspace">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Public API Simulation</p>
+            <p class="eyebrow">GroundK Mobility Intelligence</p>
             <h1 id="title">Global AI Summit Seoul 2026</h1>
+            <p class="topbar-copy">도시 이동망과 행사 수요를 하나의 운영 시나리오로 연결합니다.</p>
           </div>
           <div class="status-strip" aria-label="API connection status">
             <span><i class="ok"></i> ICN Airport</span>
@@ -87,17 +94,27 @@
 
         <section class="map-band">
           <div class="network-map" aria-label="mobility network map">
+            <div class="map-kicker">
+              <span>NETWORK MODEL / SEOUL</span>
+              <strong>ICN ARRIVAL CORRIDOR</strong>
+            </div>
             <div class="node airport">ICN</div>
             <div class="node hotel hotel-a">Gangnam</div>
             <div class="node hotel hotel-b">Myeongdong</div>
             <div class="node hotel hotel-c">Yeouido</div>
-            <div class="node venue-node">COEX</div>
+            <div class="node venue-node" id="mapVenue">COEX</div>
             <svg viewBox="0 0 1000 360" role="img" aria-label="transport corridors">
-              <path class="route primary" d="M80 210 C230 130 330 110 470 160 C590 205 690 210 850 172" />
-              <path class="route secondary" d="M470 160 C520 75 650 52 780 88" />
-              <path class="route secondary" d="M470 160 C560 240 675 280 810 270" />
-              <path class="route tertiary" d="M780 88 C830 110 865 135 850 172" />
-              <path class="route tertiary" d="M810 270 C865 235 885 205 850 172" />
+              <path class="road road-muted" d="M0 78 H240 V20 M160 360 V280 H360 V40 M520 0 V82 H760 V30 M720 360 V280 H1000" />
+              <path class="road road-muted" d="M0 310 H190 V270 H390 V330 H610 M820 0 V90 H1000 M910 360 V250 H1000" />
+              <path class="route primary" d="M76 246 H228 V206 H430 V166 H650 V196 H870" />
+              <path class="route secondary" d="M430 166 V92 H772 V76" />
+              <path class="route secondary" d="M430 166 V276 H795" />
+              <path class="route tertiary" d="M772 76 H870 V196" />
+              <path class="route tertiary" d="M795 276 H870 V196" />
+              <circle class="junction" cx="228" cy="206" r="7" />
+              <circle class="junction" cx="430" cy="166" r="9" />
+              <circle class="junction" cx="650" cy="196" r="7" />
+              <circle class="junction venue-junction" cx="870" cy="196" r="10" />
             </svg>
           </div>
           <div class="map-stats">
@@ -140,17 +157,12 @@
         </section>
 
         <section class="analysis-grid">
-          <article class="panel">
+          <article class="decision-panel">
             <div class="panel-header">
-              <h2>시간대별 수요</h2>
-              <span id="demandSource">scenario baseline</span>
-            </div>
-            <div id="demandBars" class="bars"></div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-header">
-              <h2>API 의사결정 영향</h2>
+              <div>
+                <p class="section-index">01 / DECISION INTELLIGENCE</p>
+                <h2>API 의사결정 영향</h2>
+              </div>
               <span id="decisionConfidence">baseline only</span>
             </div>
             <div id="decisionSignals" class="decision-signals">
@@ -160,24 +172,21 @@
 
           <article class="panel">
             <div class="panel-header">
-              <h2>API 데이터 레이어</h2>
-              <span>connector plan</span>
+              <div>
+                <p class="section-index">02 / DEMAND CURVE</p>
+                <h2>시간대별 공항 도착 수요</h2>
+              </div>
+              <span id="demandSource">scenario baseline</span>
             </div>
-            <ul class="api-list">
-              <li><strong>인천공항</strong><span>운항, 승객예고, 버스, 셔틀, 열차, 주차</span></li>
-              <li><strong>ITS</strong><span>교통소통, 돌발상황, CCTV, 표준노드링크</span></li>
-              <li><strong>서울</strong><span>버스, 지하철, 승하차, 생활이동, 주차</span></li>
-              <li><strong>기상</strong><span>단기예보, 특보, 강수, 폭염</span></li>
-              <li><strong>수집 상태</strong><span id="collectorSummary">GitHub Actions 수집기를 실행하면 최신 공공 API 스냅샷이 표시됩니다.</span></li>
-            </ul>
-            <div class="collector-details" id="publicDataDetails">
-              <div class="empty-state">수집 스냅샷을 불러오는 중입니다.</div>
-            </div>
+            <div id="demandBars" class="bars"></div>
           </article>
 
           <article class="panel report-panel">
             <div class="panel-header">
-              <h2>AI 교통대책 초안</h2>
+              <div>
+                <p class="section-index">03 / CONSULTING OUTPUT</p>
+                <h2>AI 교통대책 초안</h2>
+              </div>
               <span>consulting output</span>
             </div>
             <div id="report" class="report"></div>
@@ -185,7 +194,10 @@
 
           <article class="panel">
             <div class="panel-header">
-              <h2>운영안</h2>
+              <div>
+                <p class="section-index">04 / OPERATIONS</p>
+                <h2>권장 운영안</h2>
+              </div>
               <span>draft timetable</span>
             </div>
             <div id="planList" class="plan-list"></div>
